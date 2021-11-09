@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum, auto
-from typing import Iterable, Optional
+from enum import IntEnum
+from typing import Iterable, NewType, Optional
+
+Colour = NewType("Colour", int)
 
 
 @dataclass(frozen=True)
@@ -22,15 +24,15 @@ class Coord:
         return self + vector
 
 
-class CardinalDirection(Enum):
-    NORTH = auto()
-    SOUTH = auto()
-    EAST = auto()
-    WEST = auto()
-    NORTH_EAST = auto()
-    SOUTH_EAST = auto()
-    SOUTH_WEST = auto()
-    NORTH_WEST = auto()
+class CardinalDirection(IntEnum):
+    NORTH = 1
+    NORTH_EAST = 2
+    EAST = 3
+    SOUTH_EAST = 4
+    SOUTH = 5
+    SOUTH_WEST = 6
+    WEST = 7
+    NORTH_WEST = 8
 
 
 class InvalidCoord(Exception):
@@ -45,22 +47,28 @@ class InvalidDirection(Exception):
 
 
 class Grid(ABC):
-    def __init__(self, default_value: int = 0):
-        self._default_value = default_value
-        self._grid: dict[Coord, int] = {}
+    """
+    An unbounded grid, where each cell is coloured.
 
-    def __getitem__(self, coord: Coord) -> int:
-        self._check_coord(coord)
-        return self._grid.get(coord, self._default_value)
+    All cells begin coloured in the default colour.
+    """
 
-    def __setitem__(self, coord: Coord, value: int) -> None:
+    def __init__(self, default_colour: Colour = Colour(0)):
+        self._default_colour = default_colour
+        self._grid: dict[Coord, Colour] = {}
+
+    def __getitem__(self, coord: Coord) -> Colour:
         self._check_coord(coord)
-        if value == self._default_value:
+        return self._grid.get(coord, self._default_colour)
+
+    def __setitem__(self, coord: Coord, value: Colour) -> None:
+        self._check_coord(coord)
+        if value == self._default_colour:
             self._grid.pop(coord)
         else:
             self._grid[coord] = value
 
-    def __iter__(self) -> Iterable[tuple[Coord, int]]:
+    def __iter__(self) -> Iterable[tuple[Coord, Colour]]:
         for coord, value in self._grid.items():
             yield coord, value
 
@@ -68,6 +76,15 @@ class Grid(ABC):
     @abstractmethod
     def directions(self) -> dict[CardinalDirection, Vector]:
         pass
+
+    def get_direction(
+        self, old_direction: CardinalDirection, turn: int
+    ) -> CardinalDirection:
+        # 1 is forward, 2 is first step clockwise and so on
+        turn = turn - 1
+        directions = sorted(self.directions.keys())
+        old_index = directions.index(old_direction)
+        return directions[(old_index + turn) % len(self.directions)]
 
     def _check_coord(self, coord: Coord):
         if not self._validate_coord(coord):
@@ -79,9 +96,9 @@ class Grid(ABC):
             raise InvalidDirection(direction)
         return coord + self.directions[direction]
 
-    @abstractmethod
     def _validate_coord(self, coord: Coord) -> bool:
-        pass
+        # All coords are valid in square and hex grids
+        return True
 
     # @property
     # @abstractmethod
@@ -99,10 +116,6 @@ class SquareGrid(Grid):
             CardinalDirection.WEST: Vector(-1, 0),
         }
 
-    def _validate_coord(self, coord: Coord) -> bool:
-        # All coords are valid
-        return True
-
 
 class HexGrid(Grid):
     # Handy: https://www.redblobgames.com/grids/hexagons/
@@ -116,10 +129,6 @@ class HexGrid(Grid):
             CardinalDirection.NORTH_WEST: Vector(-1, 1),
             CardinalDirection.SOUTH_EAST: Vector(1, -1),
         }
-
-    def _validate_coord(self, coord: Coord) -> bool:
-        # All coords are valid
-        return True
 
 
 class TriangleGrid(Grid):
@@ -147,6 +156,24 @@ class TriangleGrid(Grid):
             CardinalDirection.SOUTH_WEST: Vector(-1, -1),
             CardinalDirection.NORTH_EAST: Vector(1, 1),
         }
+
+    def get_direction(
+        self, old_direction: CardinalDirection, turn: int
+    ) -> CardinalDirection:
+        if old_direction in self._even_dirs:
+            old_dirs = self._even_dirs
+            new_dirs = self._odd_dirs
+        elif old_direction in self._odd_dirs:
+            old_dirs = self._odd_dirs
+            new_dirs = self._even_dirs
+            turn = turn - 1
+        else:
+            raise InvalidDirection(old_direction)
+
+        old_index = sorted(old_dirs).index(old_direction)
+        # print(f"{old_index = }")
+        # print(f"{sorted(new_dirs) = }")
+        return sorted(new_dirs)[(old_index + turn) % 3]
 
     def _validate_coord(self, coord: Coord) -> bool:
         # Only (odd, odd) or (even, even) coords are valid
