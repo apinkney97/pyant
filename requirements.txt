@@ -1,4 +1,5 @@
 black
 isort
+graphics.py
 pygame>=2
 pytest

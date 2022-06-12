@@ -1,6 +1,6 @@
 from typing import Iterable, NamedTuple, NewType
 
-from ant.grid import CardinalDirection, Colour, Coord, Grid
+from ant.grid import CardinalDirection, Colour, Grid, GridCoord
 
 AntState = NewType("AntState", int)
 
@@ -23,12 +23,12 @@ class Ant:
         self,
         rules: Iterable[Rule],
         grid: Grid,
-        position: Coord,
+        position: GridCoord,
         direction: CardinalDirection,
         state: AntState,
     ):
         self._grid = grid
-        self._position: Coord = position
+        self._position: GridCoord = position
         # The current direction of the ant (the last cardinal direction it stepped in)
         self._direction: CardinalDirection = direction
         self._state: AntState = state
@@ -42,8 +42,8 @@ class Ant:
 
     def step(self):
         # Look up the rule
-        colour = self._grid[self._position]
-        rule = self._rules[RuleKey(state=self._state, colour=colour)]
+        rule_key = RuleKey(state=self._state, colour=self._grid[self._position])
+        rule = self._rules[rule_key]
 
         # change the ant's state and the colour of the cell the ant is on
         self._state = rule.new_state
