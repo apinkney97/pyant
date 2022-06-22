@@ -1,21 +1,12 @@
-from typing import Iterable, NamedTuple, NewType
+from typing import Iterable, NamedTuple
 
-from ant.grid import CardinalDirection, Colour, Grid, GridCoord
-
-AntState = NewType("AntState", int)
+from ant.grid import CardinalDirection, Grid, GridCoord
+from ant.types import AntState, Colour, Rule
 
 
 class RuleKey(NamedTuple):
     state: AntState
     colour: Colour
-
-
-class Rule(NamedTuple):
-    state: AntState
-    colour: Colour
-    new_state: AntState
-    new_colour: Colour
-    turn: int
 
 
 class Ant:
@@ -39,6 +30,10 @@ class Ant:
             if key in self._rules:
                 print(f"Warning: duplicate rules for {key}")
             self._rules[key] = rule
+
+    @property
+    def grid(self) -> Grid:
+        return self._grid
 
     def step(self):
         # Look up the rule

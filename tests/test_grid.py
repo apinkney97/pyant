@@ -4,7 +4,6 @@ import pytest
 
 from ant.grid import (
     CardinalDirection,
-    Colour,
     DisplayCoord,
     GridCoord,
     HexGrid,
@@ -14,6 +13,7 @@ from ant.grid import (
     TriangleGrid,
     Vector,
 )
+from ant.types import AntState, Colour, Rule
 
 
 def test_adding_vectors_to_coords():
@@ -330,3 +330,79 @@ def test_get_display_bbox(grid_cls, grid_coords, expected_bbox):
         grid[coord] = Colour(1)
 
     assert grid.get_display_bbox() == expected_bbox
+
+
+@pytest.mark.parametrize(
+    ["grid_cls", "lr_string", "expected"],
+    [
+        (
+            SquareGrid,
+            "LR",
+            [
+                Rule(
+                    state=AntState(0),
+                    colour=Colour(0),
+                    new_state=AntState(0),
+                    new_colour=Colour(1),
+                    turn=4,
+                ),
+                Rule(
+                    state=AntState(0),
+                    colour=Colour(1),
+                    new_state=AntState(0),
+                    new_colour=Colour(0),
+                    turn=2,
+                ),
+            ],
+        ),
+        (
+            SquareGrid,
+            "rl",
+            [
+                Rule(
+                    state=AntState(0),
+                    colour=Colour(0),
+                    new_state=AntState(0),
+                    new_colour=Colour(1),
+                    turn=2,
+                ),
+                Rule(
+                    state=AntState(0),
+                    colour=Colour(1),
+                    new_state=AntState(0),
+                    new_colour=Colour(0),
+                    turn=4,
+                ),
+            ],
+        ),
+        (
+            SquareGrid,
+            "Rrl",
+            [
+                Rule(
+                    state=AntState(0),
+                    colour=Colour(0),
+                    new_state=AntState(0),
+                    new_colour=Colour(1),
+                    turn=2,
+                ),
+                Rule(
+                    state=AntState(0),
+                    colour=Colour(1),
+                    new_state=AntState(0),
+                    new_colour=Colour(2),
+                    turn=2,
+                ),
+                Rule(
+                    state=AntState(0),
+                    colour=Colour(2),
+                    new_state=AntState(0),
+                    new_colour=Colour(0),
+                    turn=4,
+                ),
+            ],
+        ),
+    ],
+)
+def test_rules_from_lr_string(grid_cls, lr_string, expected):
+    assert grid_cls.rules_from_lr_string(lr_string) == expected

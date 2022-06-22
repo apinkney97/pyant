@@ -3,9 +3,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Iterable, NamedTuple, NewType, Optional
+from typing import Iterable, NamedTuple, Optional
 
-Colour = NewType("Colour", int)
+from ant.types import AntState, Colour, Rule
 
 
 @dataclass(frozen=True)
@@ -168,10 +168,31 @@ class Grid(ABC):
         # All coords are valid in square and hex grids
         return True
 
-    # @property
-    # @abstractmethod
-    # def bbox(self):
-    #     pass
+    @classmethod
+    @abstractmethod
+    def lr_directions(cls) -> dict[str, int]:
+        pass
+
+    @classmethod
+    def rules_from_lr_string(cls, lr_string: str) -> list[Rule]:
+        # LR string rules are all in state 0, and have one colour per character.
+        state = AntState(0)
+        rules = []
+        dirs = cls.lr_directions()
+        for colour, turn_dir in enumerate(lr_string.upper()):
+            if turn_dir not in dirs:
+                raise ValueError(f"Bad LR string value for {cls.__name__}: {turn_dir}")
+
+            rules.append(
+                Rule(
+                    state=state,
+                    colour=Colour(colour),
+                    new_state=state,
+                    new_colour=Colour((colour + 1) % len(lr_string)),
+                    turn=dirs[turn_dir],
+                )
+            )
+        return rules
 
 
 class SquareGrid(Grid):
@@ -196,6 +217,15 @@ class SquareGrid(Grid):
             DisplayCoord(right, bottom),
             DisplayCoord(left, bottom),
         )
+
+    @classmethod
+    def lr_directions(cls) -> dict[str, int]:
+        return {
+            "F": 1,
+            "R": 2,
+            "B": 3,
+            "L": 4,
+        }
 
 
 class HexGrid(Grid):
@@ -240,6 +270,17 @@ class HexGrid(Grid):
             DisplayCoord(left_x, lower_mid_y),
             DisplayCoord(left_x, upper_mid_y),
         )
+
+    @classmethod
+    def lr_directions(cls) -> dict[str, int]:
+        return {
+            "F": 1,
+            "R": 2,
+            "I": 3,  # rIght
+            "B": 4,
+            "E": 5,  # lEft
+            "L": 6,
+        }
 
 
 class TriangleGrid(Grid):
@@ -316,3 +357,11 @@ class TriangleGrid(Grid):
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
         # TODO
         raise NotImplementedError
+
+    @classmethod
+    def lr_directions(cls) -> dict[str, int]:
+        return {
+            "R": 1,
+            "B": 2,
+            "L": 3,
+        }
