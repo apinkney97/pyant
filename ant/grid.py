@@ -68,7 +68,7 @@ class InvalidCoord(Exception):
 class InvalidDirection(Exception):
     def __init__(self, direction: CardinalDirection, coord: Optional[GridCoord] = None):
         extra_msg = "" if not coord else f" for coord {coord}"
-        super().__init__(f"Bad direction {direction}{extra_msg}")
+        super().__init__(f"Bad direction {direction!r}{extra_msg}")
 
 
 class Grid(ABC):
@@ -85,6 +85,13 @@ class Grid(ABC):
         self._store_default = store_default
         self._grid: dict[GridCoord, Colour] = {}
 
+        # Used for the "fast" bbox (which does not take into account true grid geometry)
+        self._has_data = False
+        self._min_x: int = 0
+        self._min_y: int = 0
+        self._max_x: int = 0
+        self._max_y: int = 0
+
     def __init_subclass__(cls, **kwargs):
         cls._cell_vertices_cache = {}
 
@@ -92,8 +99,24 @@ class Grid(ABC):
         self._check_coord(coord)
         return self._grid.get(coord, self._default_colour)
 
+    @property
+    def bbox(self) -> tuple[int, int, int, int]:
+        return self._min_x, self._min_y, self._max_x, self._max_y
+
     def __setitem__(self, coord: GridCoord, colour: Colour) -> None:
         self._check_coord(coord)
+
+        # Update the bbox values
+        if self._has_data:
+            self._min_x = min(self._min_x, coord.x)
+            self._max_x = max(self._max_x, coord.x)
+            self._min_y = min(self._min_y, coord.y)
+            self._max_y = max(self._max_y, coord.y)
+        else:
+            self._has_data = True
+            self._min_x = self._max_x = coord.x
+            self._min_y = self._max_y = coord.y
+
         if colour == self._default_colour and not self._store_default:
             self._grid.pop(coord)
         else:
@@ -118,7 +141,7 @@ class Grid(ABC):
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
         pass
 
-    def get_display_bbox(self):
+    def get_display_bbox(self) -> tuple[int, int, int, int]:
         # This will probably be very inefficient when we have lots of coordinates...
         coords = list(self._grid.keys())
 

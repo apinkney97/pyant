@@ -12,8 +12,8 @@ class RuleKey(NamedTuple):
 class Ant:
     def __init__(
         self,
-        rules: Iterable[Rule],
         grid: Grid,
+        rules: Iterable[Rule],
         position: GridCoord,
         direction: CardinalDirection,
         state: AntState,

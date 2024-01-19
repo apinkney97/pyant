@@ -1,3 +1,5 @@
+from io import BytesIO
+
 from graphics import GraphWin, Point, Polygon
 
 from ant.grid import Grid, GridCoord, HexGrid
@@ -17,12 +19,20 @@ COLOURS = [
 
 
 class Display:
-    def __init__(self, grid: Grid, window_x: int = 1024, window_y: int = 1024):
+    def __init__(
+        self,
+        grid: Grid,
+        window_x: int = 1024,
+        window_y: int = 1024,
+        show_cell_borders=False,
+    ):
         self._data_grid = grid
         self._display_grid: dict[GridCoord, Polygon] = {}
         self._window_x = window_x
         self._window_y = window_y
+        self._show_cell_borders = show_cell_borders
         self._window = GraphWin("ANT", window_x, window_y, autoflush=False)
+        self._window.setBackground(COLOURS[0])
         self._prev_bbox = (0, 0, 0, 0)
 
     def set_title(self, title: str) -> None:
@@ -33,12 +43,22 @@ class Display:
 
         min_x, min_y, max_x, max_y = bbox
 
-        x_scale = self._window_x / (max_x - min_x)
-        y_scale = self._window_y / (max_y - min_y)
+        x_size = max_x - min_x
+        y_size = max_y - min_y
 
-        scale = min(x_scale, y_scale)
+        x_scale = self._window_x / x_size
+        y_scale = self._window_y / y_size
 
-        # TODO: Centre the image
+        x_offset = min_x
+        y_offset = min_y
+
+        # Centre the image
+        if x_scale < y_scale:
+            scale = x_scale
+            y_offset -= (self._window_y / scale - y_size) // 2
+        else:
+            scale = y_scale
+            x_offset -= (self._window_x / scale - x_size) // 2
 
         # If bbox changes, need a full redraw
         if bbox != self._prev_bbox:
@@ -58,11 +78,13 @@ class Display:
             else:
                 coords = []
                 for display_coord in self._data_grid.get_cell_vertices(grid_coord):
-                    x = (display_coord.x - min_x) * scale
-                    y = (display_coord.y - min_y) * scale
+                    x = (display_coord.x - x_offset) * scale
+                    y = (display_coord.y - y_offset) * scale
                     coords.append(Point(x, y))
 
                 polygon = Polygon(*coords)
+                if not self._show_cell_borders:
+                    polygon.setOutline("")
                 polygon.setFill(display_colour)
 
                 self._display_grid[grid_coord] = polygon
