@@ -130,3 +130,6 @@ dmypy.json
 
 # Pycharm Project metadata
 .idea/
+
+# Poetry lock
+poetry.lock

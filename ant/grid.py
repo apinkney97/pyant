@@ -273,7 +273,7 @@ class HexGrid(Grid):
 
         # We define centre to centre horizontally to be 1 unit.
         # Therefore the "size" of the hexagons (centre to any vertex) is 1/sqrt(3)
-        size = 3 ** -0.5
+        size = 3**-0.5
 
         centre_x = coord.x + (coord.y % 2) / 2
         left_x = centre_x - 0.5

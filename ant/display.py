@@ -1,5 +1,3 @@
-from io import BytesIO
-
 from graphics import GraphWin, Point, Polygon
 
 from ant.grid import Grid, GridCoord, HexGrid

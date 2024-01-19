@@ -127,9 +127,7 @@ def run(
 
 
 def main():
-    limit = 0
-    jump = 0
-    pause = 0
+    limit = jump = pause = 0
 
     jump = 1000
     # pause = 0.2
@@ -140,8 +138,8 @@ def main():
     ants = lr_hex("LR")
     # ants = lr_tri()
 
-    # run_live(ants=ants, steps_per_redraw=jump, sleep_interval=pause, step_limit=limit)
-    run(ants=ants, step_limit=50, title="something")
+    run_live(ants=ants, steps_per_redraw=jump, sleep_interval=pause, step_limit=limit)
+    # run(ants=ants, step_limit=50, title="something")
 
 
 if __name__ == "__main__":

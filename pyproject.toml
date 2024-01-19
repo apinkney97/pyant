@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "ant"
+version = "0.1.0"
+description = "Implementation of Lanton's Ant, and the more general Turmites"
+authors = ["Alex Pinkney"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+"graphics.py" = "^5.0.1.post1"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.1.13"
+pytest = "^7.4.4"
+mypy = "^1.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
