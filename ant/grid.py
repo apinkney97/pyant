@@ -78,7 +78,7 @@ class Grid(ABC):
     All cells begin coloured in the default colour.
     """
 
-    _cell_vertices_cache: dict[GridCoord, tuple[DisplayCoord]]
+    _cell_vertices_cache: dict[GridCoord, tuple[DisplayCoord, ...]]
 
     def __init__(self, default_colour: Colour = Colour(0), store_default: bool = False):
         self._default_colour = default_colour
@@ -141,7 +141,7 @@ class Grid(ABC):
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
         pass
 
-    def get_display_bbox(self) -> tuple[int, int, int, int]:
+    def get_display_bbox(self) -> tuple[float, float, float, float]:
         # This will probably be very inefficient when we have lots of coordinates...
         coords = list(self._grid.keys())
 

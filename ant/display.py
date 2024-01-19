@@ -1,4 +1,4 @@
-from graphics import GraphWin, Point, Polygon
+from graphics import GraphWin, Point, Polygon  # type: ignore
 
 from ant.grid import Grid, GridCoord, HexGrid
 from ant.types import Colour
