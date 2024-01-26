@@ -1,21 +1,13 @@
 import time
-from itertools import count
 from enum import StrEnum, auto
+from itertools import count
 
 import typer
 from graphics import tk  # type: ignore
 
-from ant.ant import Ant
 from ant.display import Display
-from ant.grid import (
-    CardinalDirection,
-    Grid,
-    GridCoord,
-    HexGrid,
-    SquareGrid,
-    TriangleGrid,
-)
-from ant.types import AntState, Rule
+from ant.grid import Ant, AntState, Grid, GridCoord, HexGrid, SquareGrid, TriangleGrid
+from ant.types import AntColour, CardinalDirection, Rule
 
 
 class GridType(StrEnum):
@@ -29,7 +21,7 @@ def make_ant(
     grid: Grid | None = None,
     start_position: GridCoord = GridCoord(0, 0),
     start_direction: CardinalDirection = CardinalDirection.NORTH,
-    ant_state: AntState = AntState(0),
+    colour: AntColour = AntColour(0),
 ) -> Ant:
     if grid is None:
         grid = SquareGrid(store_default=True)
@@ -38,9 +30,11 @@ def make_ant(
     return Ant(
         grid=grid,
         rules=rules,
-        position=start_position,
-        direction=start_direction,
-        state=ant_state,
+        initial_state=AntState(
+            position=start_position,
+            direction=start_direction,
+            colour=colour,
+        ),
     )
 
 
@@ -60,6 +54,7 @@ def _run_live(
     sleep_interval: float,
     steps_per_redraw: int,
     size_limit: int,
+    manual_steps: int,
 ) -> None:
     if not ants:
         return
@@ -72,13 +67,17 @@ def _run_live(
 
     wait = True
 
+    if manual_steps:
+        steps_per_redraw = min(manual_steps, steps_per_redraw)
+
     range_ = range(step_limit) if step_limit else count()
     i = 0
     for i in range_:
         try:
             for ant in ants:
                 ant.step()
-            if i % steps_per_redraw == 0:
+            manual_step = bool(manual_steps and i % manual_steps == 0)
+            if i % steps_per_redraw == 0 or manual_step:
                 display.render()
                 display.set_title(f"Ant: {i}")
                 if sleep_interval:
@@ -88,6 +87,8 @@ def _run_live(
                     if xmax - xmin > size_limit or ymax - ymin > size_limit:
                         print(f"Exceeded maximum size {size_limit} after {i} steps")
                         break
+                if manual_step:
+                    input(f"Step {i}; hit enter to continue")
         except KeyboardInterrupt:
             display.render()  # In case we interrupted it
             display.set_title(f"Ant: {i}")
@@ -134,16 +135,17 @@ def run(
     sleep_interval: float = 0.0,
     step_limit: int = 1_000_000,
     size_limit: int = 1_000,
+    manual_steps: int = 0,
 ):
     grid_: Grid
 
     match grid:
         case GridType.SQUARE:
-            grid_ = SquareGrid()
+            grid_ = SquareGrid(store_default=True)
         case GridType.HEX:
-            grid_ = HexGrid()
+            grid_ = HexGrid(store_default=True)
         case GridType.TRIANGLE:
-            grid_ = TriangleGrid()
+            grid_ = TriangleGrid(store_default=True)
         case _:
             raise ValueError(f"Unhandled grid type {grid}")
 
@@ -161,6 +163,7 @@ def run(
         sleep_interval=sleep_interval,
         step_limit=step_limit,
         size_limit=size_limit,
+        manual_steps=manual_steps,
     )
 
 

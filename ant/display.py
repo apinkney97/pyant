@@ -1,7 +1,9 @@
-from graphics import GraphWin, Point, Polygon  # type: ignore
+import math
+
+from graphics import Circle, GraphicsObject, GraphWin, Line, Point, Polygon  # type: ignore
 
 from ant.grid import Grid, GridCoord, HexGrid
-from ant.types import Colour
+from ant.types import CellColour
 
 COLOURS = [
     "black",
@@ -23,15 +25,20 @@ class Display:
         window_x: int = 1024,
         window_y: int = 1024,
         show_cell_borders=False,
+        show_ants: bool = True,
     ):
         self._data_grid = grid
-        self._display_grid: dict[GridCoord, Polygon] = {}
         self._window_x = window_x
         self._window_y = window_y
         self._show_cell_borders = show_cell_borders
+        self._show_ants = show_ants
+
+        self._display_grid: dict[GridCoord, Polygon] = {}
         self._window = GraphWin("ANT", window_x, window_y, autoflush=False)
         self._window.setBackground(COLOURS[0])
         self._prev_bbox = (0, 0, 0, 0)
+
+        self._display_ants: list[GraphicsObject] = []
 
     def set_title(self, title: str) -> None:
         self._window.master.title(str(title))
@@ -88,18 +95,50 @@ class Display:
                 self._display_grid[grid_coord] = polygon
                 polygon.draw(self._window)
 
+        if self._show_ants:
+            for ant_shape in self._display_ants:
+                ant_shape.undraw()
+
+            self._display_ants = []
+
+            for i, ant in enumerate(self._data_grid.ants):
+                print(
+                    f"Ant {i}: x={ant.prev_position.x}, y={ant.prev_position.y}, direction={ant.state.direction.name}"
+                )
+                ant_display_coord = self._data_grid.get_cell_centrepoint(
+                    ant.prev_position
+                )
+                ant_x = (ant_display_coord.x - x_offset) * scale
+                ant_y = (ant_display_coord.y - y_offset) * scale
+                radius = 0.4 * scale
+                ant_shape = Circle(Point(ant_x, ant_y), radius=radius)
+                ant_shape.setFill("pink")
+                ant_shape.setOutline("black")
+                ant_shape.draw(self._window)
+
+                angle = (
+                    (180 - ant.grid.get_ant_angle(ant.state.direction)) * math.pi / 180
+                )
+                dx = radius * math.sin(angle)
+                dy = radius * math.cos(angle)
+
+                ant_arrow = Line(Point(ant_x, ant_y), Point(ant_x + dx, ant_y + dy))
+                ant_arrow.draw(self._window)
+
+                self._display_ants.extend([ant_shape, ant_arrow])
+
         self._window.update()
 
 
 def test():
     grid = HexGrid(store_default=True)
-    grid[GridCoord(-1, -1)] = Colour(0)
-    grid[GridCoord(0, -1)] = Colour(1)
-    grid[GridCoord(-1, 0)] = Colour(1)
-    grid[GridCoord(0, 0)] = Colour(1)
-    grid[GridCoord(0, 1)] = Colour(2)
-    grid[GridCoord(1, 0)] = Colour(3)
-    grid[GridCoord(1, 1)] = Colour(4)
+    grid[GridCoord(-1, -1)] = CellColour(0)
+    grid[GridCoord(0, -1)] = CellColour(1)
+    grid[GridCoord(-1, 0)] = CellColour(1)
+    grid[GridCoord(0, 0)] = CellColour(1)
+    grid[GridCoord(0, 1)] = CellColour(2)
+    grid[GridCoord(1, 0)] = CellColour(3)
+    grid[GridCoord(1, 1)] = CellColour(4)
 
     d = Display(grid)
     d.render()

@@ -2,10 +2,78 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import IntEnum
-from typing import Iterable, NamedTuple, Optional
+from typing import Iterable, NamedTuple
 
-from ant.types import AntState, Colour, Rule
+from ant.types import AntColour, CardinalDirection, CellColour, Rule
+
+
+class RuleKey(NamedTuple):
+    ant_colour: AntColour
+    cell_colour: CellColour
+
+
+class AntState(NamedTuple):
+    position: GridCoord
+    direction: CardinalDirection  # Current direction (ie last direction the ant stepped in)
+    colour: AntColour
+
+
+class Ant:
+    def __init__(
+        self,
+        grid: Grid,
+        rules: Iterable[Rule],
+        initial_state: AntState,
+    ):
+        self._grid = grid
+        self._state = initial_state
+        self._prev_position = initial_state.position
+
+        self._rules: dict[RuleKey, Rule] = {}
+        for rule in rules:
+            key = RuleKey(ant_colour=rule.ant_colour, cell_colour=rule.cell_colour)
+            if key in self._rules:
+                print(f"Warning: duplicate rules for {key}")
+            self._rules[key] = rule
+
+        grid.add_ant(self)
+
+    @property
+    def grid(self) -> Grid:
+        return self._grid
+
+    def step(self):
+        # Look up the rule
+        rule_key = RuleKey(
+            ant_colour=self.state.colour, cell_colour=self._grid[self.state.position]
+        )
+        rule = self._rules[rule_key]
+
+        # change the colour of the current cell
+        self._grid[self.state.position] = rule.new_cell_colour
+
+        # calculate the new direction, then move the ant in that direction
+        new_direction = self._grid.get_direction(
+            self.state.position, self.state.direction, rule.turn
+        )
+        new_position = self._grid.get_neighbour(self.state.position, new_direction)
+
+        self._prev_position = self.state.position
+        self._state = AntState(
+            position=new_position, direction=new_direction, colour=rule.new_ant_colour
+        )
+
+    @property
+    def state(self):
+        return self._state
+
+    @property
+    def prev_position(self) -> GridCoord:
+        # Useful for drawing the ant, when we usually want to show where it just was
+        return self._prev_position
+
+    def __repr__(self):
+        return f"Ant(state={self.state})"
 
 
 @dataclass(frozen=True)
@@ -49,26 +117,14 @@ class DisplayCoord(NamedTuple):
     y: float
 
 
-class CardinalDirection(IntEnum):
-    NORTH = 1
-    NORTH_EAST = 2
-    EAST = 3
-    SOUTH_EAST = 4
-    SOUTH = 5
-    SOUTH_WEST = 6
-    WEST = 7
-    NORTH_WEST = 8
-
-
 class InvalidCoord(Exception):
     def __init__(self, coord: GridCoord):
         super().__init__(f"Invalid coordinate {coord}")
 
 
 class InvalidDirection(Exception):
-    def __init__(self, direction: CardinalDirection, coord: Optional[GridCoord] = None):
-        extra_msg = "" if not coord else f" for coord {coord}"
-        super().__init__(f"Bad direction {direction!r}{extra_msg}")
+    def __init__(self, direction: CardinalDirection, coord: GridCoord):
+        super().__init__(f"Bad direction {direction!r} for coord {coord}")
 
 
 class Grid(ABC):
@@ -76,14 +132,28 @@ class Grid(ABC):
     An unbounded grid, where each cell is coloured.
 
     All cells begin coloured in the default colour.
+
+    We define:
+        - North as negative Y
+        - South as positive Y
+        - East as positive X
+        - West as negative X
+
+    This fits with the typical coordinate systems used to draw on screen,
+    where (0, 0) is in the top-left of the window, with positive Y going downwards,
+    and positive X going right.
     """
 
     _cell_vertices_cache: dict[GridCoord, tuple[DisplayCoord, ...]]
 
-    def __init__(self, default_colour: Colour = Colour(0), store_default: bool = False):
+    def __init__(
+        self, default_colour: CellColour = CellColour(0), store_default: bool = False
+    ):
         self._default_colour = default_colour
         self._store_default = store_default
-        self._grid: dict[GridCoord, Colour] = {}
+        self._grid: dict[GridCoord, CellColour] = {}
+
+        self._ants: list[Ant] = []
 
         # Used for the "fast" bbox (which does not take into account true grid geometry)
         self._has_data = False
@@ -95,7 +165,18 @@ class Grid(ABC):
     def __init_subclass__(cls, **kwargs):
         cls._cell_vertices_cache = {}
 
-    def __getitem__(self, coord: GridCoord) -> Colour:
+    def add_ant(self, ant: Ant) -> None:
+        self._ants.append(ant)
+
+    @property
+    def ants(self) -> list[Ant]:
+        return self._ants[:]
+
+    def __contains__(self, coord: GridCoord) -> bool:
+        self._check_coord(coord)
+        return coord in self._grid
+
+    def __getitem__(self, coord: GridCoord) -> CellColour:
         self._check_coord(coord)
         return self._grid.get(coord, self._default_colour)
 
@@ -103,7 +184,7 @@ class Grid(ABC):
     def bbox(self) -> tuple[int, int, int, int]:
         return self._min_x, self._min_y, self._max_x, self._max_y
 
-    def __setitem__(self, coord: GridCoord, colour: Colour) -> None:
+    def __setitem__(self, coord: GridCoord, colour: CellColour) -> None:
         self._check_coord(coord)
 
         # Update the bbox values
@@ -122,7 +203,7 @@ class Grid(ABC):
         else:
             self._grid[coord] = colour
 
-    def __iter__(self) -> Iterable[tuple[GridCoord, Colour]]:
+    def __iter__(self) -> Iterable[tuple[GridCoord, CellColour]]:
         for coord, colour in self._grid.items():
             yield coord, colour
 
@@ -130,15 +211,30 @@ class Grid(ABC):
     def get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
         """Returns the 2d coordinates of the cell's vertices, to be used for rendering."""
         try:
-            display_coord = cls._cell_vertices_cache[coord]
+            display_coords = cls._cell_vertices_cache[coord]
         except KeyError:
-            display_coord = cls._get_cell_vertices(coord)
-            cls._cell_vertices_cache[coord] = display_coord
-        return display_coord
+            display_coords = cls._get_cell_vertices(coord)
+            cls._cell_vertices_cache[coord] = display_coords
+        return display_coords
+
+    @classmethod
+    @abstractmethod
+    def get_ant_angle(cls, direction: CardinalDirection) -> int:
+        """
+        Returns the angle the ant is facing (in degrees) when pointing in the given direction.
+
+        0 is north, 90 is east, 180 is south, 270 is west.
+        """
 
     @classmethod
     @abstractmethod
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_cell_centrepoint(cls, coord: GridCoord) -> DisplayCoord:
+        """Returns the centre point of the cell"""
         pass
 
     def get_display_bbox(self) -> tuple[float, float, float, float]:
@@ -161,19 +257,21 @@ class Grid(ABC):
 
         return min_x, min_y, max_x, max_y
 
-    @property
     @abstractmethod
-    def directions(self) -> dict[CardinalDirection, Vector]:
-        pass
+    def get_direction_vectors(
+        self, coord: GridCoord
+    ) -> dict[CardinalDirection, Vector]:
+        """Returns a mapping of directions to vectors for neighbours of the given grid coordinate."""
 
     def get_direction(
-        self, old_direction: CardinalDirection, turn: int
+        self, coord: GridCoord, old_direction: CardinalDirection, turn: int
     ) -> CardinalDirection:
         # 1 is forward, 2 is first step clockwise and so on
         turn = turn - 1
-        directions = sorted(self.directions.keys())
+        direction_vectors = self.get_direction_vectors(coord)
+        directions = sorted(direction_vectors.keys())
         old_index = directions.index(old_direction)
-        return directions[(old_index + turn) % len(self.directions)]
+        return directions[(old_index + turn) % len(direction_vectors)]
 
     def _check_coord(self, coord: GridCoord):
         if not self._validate_coord(coord):
@@ -183,9 +281,10 @@ class Grid(ABC):
         self, coord: GridCoord, direction: CardinalDirection
     ) -> GridCoord:
         self._check_coord(coord)
-        if direction not in self.directions:
-            raise InvalidDirection(direction)
-        return coord + self.directions[direction]
+        direction_vectors = self.get_direction_vectors(coord)
+        if direction not in direction_vectors:
+            raise InvalidDirection(direction, coord)
+        return coord + direction_vectors[direction]
 
     def _validate_coord(self, coord: GridCoord) -> bool:
         # All coords are valid in square and hex grids
@@ -197,36 +296,79 @@ class Grid(ABC):
         pass
 
     @classmethod
+    def _tokenise_lr_string(cls, lr_str: str) -> Iterable[str]:
+        # We want to match greedily, so longest keys first.
+        # Note this does not handle cases where tokens can run into one another ambiguously
+        # (even if that ambiguity is resolved in the string as a whole).
+        valid_tokens = sorted(cls.lr_directions().keys(), key=len, reverse=True)
+
+        lr_str_ = lr_str
+
+        while lr_str_:
+            for token in valid_tokens:
+                if lr_str_.startswith(token):
+                    yield token
+                    lr_str_ = lr_str_[len(token) :]
+                    break
+            else:
+                raise ValueError(
+                    f"Invalid LR string: {lr_str}. Valid tokens: {valid_tokens}"
+                )
+
+    @classmethod
     def rules_from_lr_string(cls, lr_string: str) -> list[Rule]:
-        # LR string rules are all in state 0, and have one colour per character.
-        state = AntState(0)
+        # LR string rules are all in ant colour 0, and have one cell colour per character.
+        ant_colour = AntColour(0)
         rules = []
         dirs = cls.lr_directions()
-        for colour, turn_dir in enumerate(lr_string.upper()):
+
+        rule_tokens = list(cls._tokenise_lr_string(lr_string))
+
+        for colour, turn_dir in enumerate(rule_tokens):
             if turn_dir not in dirs:
                 raise ValueError(f"Bad LR string value for {cls.__name__}: {turn_dir}")
 
             rules.append(
                 Rule(
-                    state=state,
-                    colour=Colour(colour),
-                    new_state=state,
-                    new_colour=Colour((colour + 1) % len(lr_string)),
+                    ant_colour=ant_colour,
+                    cell_colour=CellColour(colour),
+                    new_ant_colour=ant_colour,
+                    new_cell_colour=CellColour((colour + 1) % len(rule_tokens)),
                     turn=dirs[turn_dir],
                 )
             )
+
+        for i, rule in enumerate(rules):
+            print(i, rule)
         return rules
 
 
 class SquareGrid(Grid):
-    @property
-    def directions(self) -> dict[CardinalDirection, Vector]:
+    def get_direction_vectors(
+        self, coord: GridCoord
+    ) -> dict[CardinalDirection, Vector]:
         return {
-            CardinalDirection.NORTH: Vector(0, 1),
+            CardinalDirection.NORTH: Vector(0, -1),
             CardinalDirection.EAST: Vector(1, 0),
-            CardinalDirection.SOUTH: Vector(0, -1),
+            CardinalDirection.SOUTH: Vector(0, 1),
             CardinalDirection.WEST: Vector(-1, 0),
         }
+
+    @classmethod
+    def get_ant_angle(cls, direction: CardinalDirection) -> int:
+        match direction:
+            case CardinalDirection.NORTH:
+                return 0
+            case CardinalDirection.EAST:
+                return 90
+            case CardinalDirection.SOUTH:
+                return 180
+            case CardinalDirection.WEST:
+                return 270
+            case _:
+                raise ValueError(
+                    f"Unsupported direction {direction} for {cls.__name__}"
+                )
 
     @classmethod
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
@@ -242,11 +384,20 @@ class SquareGrid(Grid):
         )
 
     @classmethod
+    def get_cell_centrepoint(cls, coord: GridCoord) -> DisplayCoord:
+        return DisplayCoord(coord.x + 0.5, coord.y + 0.5)
+
+    @classmethod
     def lr_directions(cls) -> dict[str, int]:
+        # Synonyms:
+        # F / N: Forwards / No change
+        # B / U: Backwards / U-turn
         return {
-            "F": 1,
+            "F": 1,  # Forwards
+            "N": 1,  # No change
             "R": 2,
-            "B": 3,
+            "B": 3,  # Backwards
+            "U": 3,  # U-turn
             "L": 4,
         }
 
@@ -254,55 +405,109 @@ class SquareGrid(Grid):
 class HexGrid(Grid):
     # Handy: https://www.redblobgames.com/grids/hexagons/
     # This is a "pointy-topped" grid, ie cells lie in horizontal rows.
-    @property
-    def directions(self) -> dict[CardinalDirection, Vector]:
-        return {
-            CardinalDirection.EAST: Vector(1, 0),
-            CardinalDirection.WEST: Vector(-1, 0),
-            CardinalDirection.NORTH_EAST: Vector(0, 1),
-            CardinalDirection.SOUTH_WEST: Vector(0, -1),
-            CardinalDirection.NORTH_WEST: Vector(-1, 1),
-            CardinalDirection.SOUTH_EAST: Vector(1, -1),
-        }
+
+    #  /`\
+    # | C |
+    #  \./
+
+    # We define centre to centre horizontally to be 1 unit.
+    # Therefore the "size" of the hexagons (centre to any vertex) is 1/sqrt(3)
+    SIZE = 3**-0.5
+
+    _EVEN_VECTORS = {
+        CardinalDirection.EAST: Vector(1, 0),
+        CardinalDirection.WEST: Vector(-1, 0),
+        CardinalDirection.NORTH_EAST: Vector(0, -1),
+        CardinalDirection.SOUTH_EAST: Vector(0, 1),
+        CardinalDirection.NORTH_WEST: Vector(-1, -1),
+        CardinalDirection.SOUTH_WEST: Vector(-1, 1),
+    }
+    _ODD_VECTORS = {
+        CardinalDirection.EAST: Vector(1, 0),
+        CardinalDirection.WEST: Vector(-1, 0),
+        CardinalDirection.NORTH_EAST: Vector(1, -1),
+        CardinalDirection.SOUTH_EAST: Vector(1, 1),
+        CardinalDirection.NORTH_WEST: Vector(0, -1),
+        CardinalDirection.SOUTH_WEST: Vector(0, 1),
+    }
+
+    def get_direction_vectors(
+        self, coord: GridCoord
+    ) -> dict[CardinalDirection, Vector]:
+        return self._EVEN_VECTORS if coord.y % 2 == 0 else self._ODD_VECTORS
+
+    @classmethod
+    def get_ant_angle(cls, direction: CardinalDirection) -> int:
+        match direction:
+            case CardinalDirection.NORTH_EAST:
+                return 30
+            case CardinalDirection.EAST:
+                return 90
+            case CardinalDirection.SOUTH_EAST:
+                return 150
+            case CardinalDirection.SOUTH_WEST:
+                return 210
+            case CardinalDirection.WEST:
+                return 270
+            case CardinalDirection.NORTH_WEST:
+                return 330
+            case _:
+                raise ValueError(
+                    f"Unsupported direction {direction} for {cls.__name__}"
+                )
 
     @classmethod
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
-        #  /`\
-        # | C |
-        #  \./
+        centre = cls.get_cell_centrepoint(coord)
 
-        # We define centre to centre horizontally to be 1 unit.
-        # Therefore the "size" of the hexagons (centre to any vertex) is 1/sqrt(3)
-        size = 3**-0.5
+        left_x = centre.x - 0.5
+        right_x = centre.x + 0.5
 
-        centre_x = coord.x + (coord.y % 2) / 2
-        left_x = centre_x - 0.5
-        right_x = centre_x + 0.5
-
-        centre_y = coord.y / (size * 2)
-        top_y = centre_y + size
-        upper_mid_y = centre_y + size / 2
-        lower_mid_y = centre_y - size / 2
-        bottom_y = centre_y - size
+        top_y = centre.y + cls.SIZE
+        upper_mid_y = centre.y + cls.SIZE / 2
+        lower_mid_y = centre.y - cls.SIZE / 2
+        bottom_y = centre.y - cls.SIZE
 
         return (
-            DisplayCoord(centre_x, top_y),
+            DisplayCoord(centre.x, top_y),
             DisplayCoord(right_x, upper_mid_y),
             DisplayCoord(right_x, lower_mid_y),
-            DisplayCoord(centre_x, bottom_y),
+            DisplayCoord(centre.x, bottom_y),
             DisplayCoord(left_x, lower_mid_y),
             DisplayCoord(left_x, upper_mid_y),
         )
 
     @classmethod
+    def get_cell_centrepoint(cls, coord: GridCoord) -> DisplayCoord:
+        # Odd rows are offset by half
+        centre_x = coord.x + (coord.y % 2) / 2
+        centre_y = coord.y / (cls.SIZE * 2)
+
+        return DisplayCoord(centre_x, centre_y)
+
+    @classmethod
     def lr_directions(cls) -> dict[str, int]:
+        # Synonymns:
+        # F / N  -> Forwards / No change (0 degrees)
+        # R / R1 -> Right 60 degrees
+        # I / R2 -> rIght 120 degrees
+        # B / U  -> Backwards / U-turn (180 degrees)
+        # E / L2 -> lEft 120 degrees
+        # L / L1 -> Left 60 degrees
+
         return {
             "F": 1,
+            "N": 1,
             "R": 2,
+            "R1": 2,
             "I": 3,  # rIght
+            "R2": 3,
             "B": 4,
+            "U": 4,
             "E": 5,  # lEft
+            "L2": 5,
             "L": 6,
+            "L1": 6,
         }
 
 
@@ -321,8 +526,10 @@ class TriangleGrid(Grid):
         CardinalDirection.SOUTH_EAST,
     }
 
-    @property
-    def directions(self) -> dict[CardinalDirection, Vector]:
+    def get_direction_vectors(
+        self, coord: GridCoord
+    ) -> dict[CardinalDirection, Vector]:
+        # TODO: this is probably wrong
         return {
             CardinalDirection.NORTH: Vector(-1, 1),
             CardinalDirection.SOUTH: Vector(1, -1),
@@ -333,7 +540,7 @@ class TriangleGrid(Grid):
         }
 
     def get_direction(
-        self, old_direction: CardinalDirection, turn: int
+        self, coord: GridCoord, old_direction: CardinalDirection, turn: int
     ) -> CardinalDirection:
         if old_direction in self._even_dirs:
             old_dirs = self._even_dirs
@@ -343,7 +550,7 @@ class TriangleGrid(Grid):
             new_dirs = self._even_dirs
             turn = turn - 1
         else:
-            raise InvalidDirection(old_direction)
+            raise InvalidDirection(old_direction, coord)
 
         old_index = sorted(old_dirs).index(old_direction)
         # print(f"{old_index = }")
@@ -358,6 +565,26 @@ class TriangleGrid(Grid):
     def is_even(coord: GridCoord) -> bool:
         return coord.x % 2 == 0
 
+    @classmethod
+    def get_ant_angle(cls, direction: CardinalDirection) -> int:
+        match direction:
+            case CardinalDirection.NORTH:
+                return 0
+            case CardinalDirection.NORTH_EAST:
+                return 60
+            case CardinalDirection.SOUTH_EAST:
+                return 120
+            case CardinalDirection.SOUTH:
+                return 180
+            case CardinalDirection.SOUTH_WEST:
+                return 240
+            case CardinalDirection.NORTH_WEST:
+                return 300
+            case _:
+                raise ValueError(
+                    f"Unsupported direction {direction} for {cls.__name__}"
+                )
+
     def get_neighbour(
         self, coord: GridCoord, direction: CardinalDirection
     ) -> GridCoord:
@@ -366,8 +593,9 @@ class TriangleGrid(Grid):
         # makes sense to catch it earlier to avoid misleading errors about invalid
         # directions for invalid coordinates.
 
-        if direction not in self.directions:
-            raise InvalidDirection(direction)
+        direction_vectors = self.get_direction_vectors(coord)
+        if direction not in direction_vectors:
+            raise InvalidDirection(direction, coord)
 
         valid_dirs = self._even_dirs if self.is_even(coord) else self._odd_dirs
 
@@ -379,6 +607,10 @@ class TriangleGrid(Grid):
     @classmethod
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
         # TODO
+        raise NotImplementedError
+
+    @classmethod
+    def get_cell_centrepoint(cls, coord: GridCoord) -> DisplayCoord:
         raise NotImplementedError
 
     @classmethod

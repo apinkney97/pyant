@@ -22,3 +22,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 pyant = 'ant.main:main'
+
+[tool.mypy]
+#warn_return_any = true
+#disallow_untyped_defs = true
