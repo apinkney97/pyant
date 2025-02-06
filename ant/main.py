@@ -70,8 +70,8 @@ def _run_live(
     if manual_steps:
         steps_per_redraw = min(manual_steps, steps_per_redraw)
 
-    range_ = range(step_limit) if step_limit else count()
-    i = 0
+    range_ = iter(range(step_limit + 1) if step_limit else count())
+    i = next(range_)
     for i in range_:
         try:
             for ant in ants:

@@ -10,7 +10,7 @@ description = "Implementation of Lanton's Ant, and the more general Turmites"
 license = {text = "MIT"}
 name = "ant"
 readme = "README.md"
-requires-python = "<4.0,>=3.10"
+requires-python = "<4.0,>=3.13"
 version = "0.1.0"
 
 [project.scripts]

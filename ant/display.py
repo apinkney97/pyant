@@ -102,9 +102,9 @@ class Display:
             self._display_ants = []
 
             for i, ant in enumerate(self._data_grid.ants):
-                print(
-                    f"Ant {i}: x={ant.prev_position.x}, y={ant.prev_position.y}, direction={ant.state.direction.name}"
-                )
+                # print(
+                #     f"Ant {i}: x={ant.prev_position.x}, y={ant.prev_position.y}, direction={ant.state.direction.name}"
+                # )
                 ant_display_coord = self._data_grid.get_cell_centrepoint(
                     ant.prev_position
                 )
