@@ -24,9 +24,9 @@ class Display:
         grid: Grid,
         window_x: int = 1024,
         window_y: int = 1024,
-        show_cell_borders=False,
+        show_cell_borders: bool = False,
         show_ants: bool = True,
-    ):
+    ) -> None:
         self._data_grid = grid
         self._window_x = window_x
         self._window_y = window_y
@@ -36,14 +36,14 @@ class Display:
         self._display_grid: dict[GridCoord, Polygon] = {}
         self._window = GraphWin("ANT", window_x, window_y, autoflush=False)
         self._window.setBackground(COLOURS[0])
-        self._prev_bbox = (0, 0, 0, 0)
+        self._prev_bbox = (0.0, 0.0, 0.0, 0.0)
 
         self._display_ants: list[GraphicsObject] = []
 
     def set_title(self, title: str) -> None:
         self._window.master.title(str(title))
 
-    def render(self):
+    def render(self) -> None:
         bbox = self._data_grid.get_display_bbox()
 
         min_x, min_y, max_x, max_y = bbox
@@ -130,7 +130,7 @@ class Display:
         self._window.update()
 
 
-def test():
+def test() -> None:
     grid = HexGrid(store_default=True)
     grid[GridCoord(-1, -1)] = CellColour(0)
     grid[GridCoord(0, -1)] = CellColour(1)

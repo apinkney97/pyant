@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable, NamedTuple
+from typing import Iterable, NamedTuple, Generator, Any
 
 from ant.types import AntColour, CardinalDirection, CellColour, Rule
 
@@ -14,7 +14,7 @@ class RuleKey(NamedTuple):
 
 class AntState(NamedTuple):
     position: GridCoord
-    direction: CardinalDirection  # Current direction (ie last direction the ant stepped in)
+    direction: CardinalDirection
     colour: AntColour
 
 
@@ -24,7 +24,7 @@ class Ant:
         grid: Grid,
         rules: Iterable[Rule],
         initial_state: AntState,
-    ):
+    ) -> None:
         self._grid = grid
         self._state = initial_state
         self._prev_position = initial_state.position
@@ -42,7 +42,7 @@ class Ant:
     def grid(self) -> Grid:
         return self._grid
 
-    def step(self):
+    def step(self) -> None:
         # Look up the rule
         rule_key = RuleKey(
             ant_colour=self.state.colour, cell_colour=self._grid[self.state.position]
@@ -64,7 +64,7 @@ class Ant:
         )
 
     @property
-    def state(self):
+    def state(self) -> AntState:
         return self._state
 
     @property
@@ -72,7 +72,7 @@ class Ant:
         # Useful for drawing the ant, when we usually want to show where it just was
         return self._prev_position
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Ant(state={self.state})"
 
 
@@ -81,13 +81,13 @@ class Vector:
     dx: int
     dy: int
 
-    def __add__(self, other: Vector):
+    def __add__(self, other: Vector) -> Vector:
         if not isinstance(other, Vector):
             return NotImplemented
 
         return Vector(self.dx + other.dx, self.dy + other.dy)
 
-    def __radd__(self, other: Vector):
+    def __radd__(self, other: Vector) -> Vector:
         if not isinstance(other, Vector):
             return NotImplemented
 
@@ -99,13 +99,13 @@ class GridCoord:
     x: int
     y: int
 
-    def __add__(self, vector: Vector):
+    def __add__(self, vector: Vector) -> GridCoord:
         if not isinstance(vector, Vector):
             return NotImplemented
 
         return GridCoord(self.x + vector.dx, self.y + vector.dy)
 
-    def __radd__(self, vector: Vector):
+    def __radd__(self, vector: Vector) -> GridCoord:
         if not isinstance(vector, Vector):
             return NotImplemented
 
@@ -118,12 +118,12 @@ class DisplayCoord(NamedTuple):
 
 
 class InvalidCoord(Exception):
-    def __init__(self, coord: GridCoord):
+    def __init__(self, coord: GridCoord) -> None:
         super().__init__(f"Invalid coordinate {coord}")
 
 
 class InvalidDirection(Exception):
-    def __init__(self, direction: CardinalDirection, coord: GridCoord):
+    def __init__(self, direction: CardinalDirection, coord: GridCoord) -> None:
         super().__init__(f"Bad direction {direction!r} for coord {coord}")
 
 
@@ -148,7 +148,7 @@ class Grid(ABC):
 
     def __init__(
         self, default_colour: CellColour = CellColour(0), store_default: bool = False
-    ):
+    ) -> None:
         self._default_colour = default_colour
         self._store_default = store_default
         self._grid: dict[GridCoord, CellColour] = {}
@@ -162,7 +162,8 @@ class Grid(ABC):
         self._max_x: int = 0
         self._max_y: int = 0
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
         cls._cell_vertices_cache = {}
 
     def add_ant(self, ant: Ant) -> None:
@@ -203,7 +204,7 @@ class Grid(ABC):
         else:
             self._grid[coord] = colour
 
-    def __iter__(self) -> Iterable[tuple[GridCoord, CellColour]]:
+    def __iter__(self) -> Generator[tuple[GridCoord, CellColour]]:
         for coord, colour in self._grid.items():
             yield coord, colour
 
@@ -273,7 +274,7 @@ class Grid(ABC):
         old_index = directions.index(old_direction)
         return directions[(old_index + turn) % len(direction_vectors)]
 
-    def _check_coord(self, coord: GridCoord):
+    def _check_coord(self, coord: GridCoord) -> None:
         if not self._validate_coord(coord):
             raise InvalidCoord(coord)
 
@@ -296,7 +297,7 @@ class Grid(ABC):
         pass
 
     @classmethod
-    def _tokenise_lr_string(cls, lr_str: str) -> Iterable[str]:
+    def _tokenise_lr_string(cls, lr_str: str) -> Generator[str]:
         # We want to match greedily, so longest keys first.
         # Note this does not handle cases where tokens can run into one another ambiguously
         # (even if that ambiguity is resolved in the string as a whole).

@@ -110,7 +110,7 @@ def _run(
     step_limit: int,
     size_limit: int,
     title: str = "",
-):
+) -> None:
     grid = validate_ants(ants)
     for i in range(step_limit):
         for ant in ants:
@@ -127,7 +127,7 @@ def _run(
 app = typer.Typer()
 
 
-@app.command()
+@app.command(help="Run live")
 def run(
     lr_rules: list[str],
     grid: GridType = GridType.SQUARE,
@@ -136,7 +136,7 @@ def run(
     step_limit: int = 1_000_000,
     size_limit: int = 1_000,
     manual_steps: int = 0,
-):
+) -> None:
     grid_: Grid
 
     match grid:
@@ -167,12 +167,12 @@ def run(
     )
 
 
-@app.command()
-def dump():
+@app.command(help="Dump frames to image files")
+def dump() -> None:
     pass
 
 
-def main():
+def main() -> None:
     app()
 
 
