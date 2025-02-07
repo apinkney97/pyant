@@ -23,3 +23,9 @@ uv run pyant run RLLRRLLLLRRR
 uv run pyant run --grid hex R1R2NUR2R1L2 --step-limit 20000
 ```
 ![Ant R1R2NUR2R1L2 on a hex grid after 20k steps](./examples/ant-hex-R1R2NUR2R1L2-20000.png)
+
+### A 14 colour ant on a triangle grid
+```shell
+uv run pyant run --grid triangle RLLLLLLLLLLLLL
+```
+![Ant RLLLLLLLLLLLLL on a triangle grid after 1 million steps](./examples/ant-triangle-RLLLLLLLLLLLLL-1000000.png)
