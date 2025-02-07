@@ -235,7 +235,7 @@ class Grid(ABC):
     @classmethod
     @abstractmethod
     def get_cell_centrepoint(cls, coord: GridCoord) -> DisplayCoord:
-        """Returns the centre point of the cell"""
+        """Returns the centre point of the cell, useful if we want to draw an ant on top"""
         pass
 
     def get_display_bbox(self) -> tuple[float, float, float, float]:
@@ -415,21 +415,27 @@ class HexGrid(Grid):
     # Therefore the "size" of the hexagons (centre to any vertex) is 1/sqrt(3)
     SIZE = 3**-0.5
 
-    _EVEN_VECTORS = {
+    _COMMON_VECTORS = {
         CardinalDirection.EAST: Vector(1, 0),
         CardinalDirection.WEST: Vector(-1, 0),
+    }
+
+    # Because our hex grid is just a square one in disguise, we must treat
+    # every other row is offset by half a cell. This means our up and down
+    # vectors differ depending on whether we're in an odd or even row.
+    _EVEN_VECTORS = {
         CardinalDirection.NORTH_EAST: Vector(0, -1),
         CardinalDirection.SOUTH_EAST: Vector(0, 1),
         CardinalDirection.NORTH_WEST: Vector(-1, -1),
         CardinalDirection.SOUTH_WEST: Vector(-1, 1),
+        **_COMMON_VECTORS,
     }
     _ODD_VECTORS = {
-        CardinalDirection.EAST: Vector(1, 0),
-        CardinalDirection.WEST: Vector(-1, 0),
         CardinalDirection.NORTH_EAST: Vector(1, -1),
         CardinalDirection.SOUTH_EAST: Vector(1, 1),
         CardinalDirection.NORTH_WEST: Vector(0, -1),
         CardinalDirection.SOUTH_WEST: Vector(0, 1),
+        **_COMMON_VECTORS,
     }
 
     def get_direction_vectors(
@@ -527,17 +533,22 @@ class TriangleGrid(Grid):
         CardinalDirection.SOUTH_EAST,
     }
 
+    _HEIGHT = 3**0.5
+
     def get_direction_vectors(
         self, coord: GridCoord
     ) -> dict[CardinalDirection, Vector]:
-        # TODO: this is probably wrong
+        # TODO: check this
+        if self.is_even(coord):
+            return {
+                CardinalDirection.NORTH_WEST: Vector(-1, 1),
+                CardinalDirection.NORTH_EAST: Vector(1, 1),
+                CardinalDirection.SOUTH: Vector(1, -1),
+            }
         return {
             CardinalDirection.NORTH: Vector(-1, 1),
-            CardinalDirection.SOUTH: Vector(1, -1),
             CardinalDirection.SOUTH_EAST: Vector(1, -1),
-            CardinalDirection.NORTH_WEST: Vector(-1, 1),
             CardinalDirection.SOUTH_WEST: Vector(-1, -1),
-            CardinalDirection.NORTH_EAST: Vector(1, 1),
         }
 
     def get_direction(
@@ -607,12 +618,48 @@ class TriangleGrid(Grid):
 
     @classmethod
     def _get_cell_vertices(cls, coord: GridCoord) -> tuple[DisplayCoord, ...]:
-        # TODO
-        raise NotImplementedError
+        # For display purposes, we define our triangles to have a side length of 2.
+        # Height is therefore sqrt(3)
+
+        # Even coords point towards positive Y.
+        # Coord (0, 0) has left corner at (0, 0)
+        # Coord (2, 0) has left corner at (2, 0)
+        # Coord (0, 2) has left corner at (1, H)
+        # Coord (x, y) has left corner at (y//2 + x, y//2 * H)
+
+        if cls.is_even(coord):
+            bottom_left = DisplayCoord(
+                coord.x + coord.y // 2, coord.y // 2 * cls._HEIGHT
+            )
+            return (
+                bottom_left,
+                DisplayCoord(bottom_left.x + 2, bottom_left.y),
+                DisplayCoord(bottom_left.x + 1, bottom_left.y + cls._HEIGHT),
+            )
+
+        # Odd coords point towards negative Y.
+        # Coord (1, 1) has bottom corner at (2, 0)
+        # Coord (3, 1) has bottom corner at (4, 0)
+        # Coord (1, 3) has bottom corner at (3, h)
+        # Coord (x, y) has bottom corner at (1 + x + y//2, y//2 * H)
+
+        bottom = DisplayCoord(1 + coord.x + coord.y // 2, coord.y // 2 * cls._HEIGHT)
+
+        return (
+            bottom,
+            DisplayCoord(bottom.x - 1, bottom.y + cls._HEIGHT),
+            DisplayCoord(bottom.x + 1, bottom.y + cls._HEIGHT),
+        )
 
     @classmethod
     def get_cell_centrepoint(cls, coord: GridCoord) -> DisplayCoord:
-        raise NotImplementedError
+        # Side length is 2, so height is sqrt(2**2 - 1**2) == sqrt(3)
+        if cls.is_even(coord):
+            bot_left = cls.get_cell_vertices(coord)[0]
+            return DisplayCoord(bot_left.x + 1, bot_left.y + cls._HEIGHT / 3)
+
+        bottom = cls.get_cell_vertices(coord)[0]
+        return DisplayCoord(bottom.x, bottom.y + cls._HEIGHT * 2 / 3)
 
     @classmethod
     def lr_directions(cls) -> dict[str, int]:

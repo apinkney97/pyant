@@ -2,7 +2,7 @@ import math
 
 from graphics import Circle, GraphicsObject, GraphWin, Line, Point, Polygon  # type: ignore
 
-from ant.grid import Grid, GridCoord, HexGrid
+from ant.grid import Grid, GridCoord, HexGrid, TriangleGrid
 from ant.types import CellColour
 
 COLOURS = [
@@ -140,5 +140,11 @@ def test() -> None:
     grid[GridCoord(1, 0)] = CellColour(3)
     grid[GridCoord(1, 1)] = CellColour(4)
 
-    d = Display(grid)
+    # d = Display(grid)
+    # d.render()
+
+    tg = TriangleGrid(store_default=True)
+    tg[GridCoord(0, 0)] = CellColour(1)
+    tg[GridCoord(2, 2)] = CellColour(2)
+    d = Display(tg)
     d.render()
