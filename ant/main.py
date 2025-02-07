@@ -83,8 +83,11 @@ def _run_live(
                 if sleep_interval:
                     time.sleep(sleep_interval)
                 if size_limit:
-                    xmin, ymin, xmax, ymax = grid.bbox
-                    if xmax - xmin > size_limit or ymax - ymin > size_limit:
+                    bbox = grid.get_display_bbox()
+                    if (
+                        bbox.max.x - bbox.min.x > size_limit
+                        or bbox.max.y - bbox.min.y > size_limit
+                    ):
                         print(f"Exceeded maximum size {size_limit} after {i} steps")
                         break
                 if manual_step:
@@ -116,8 +119,11 @@ def _run(
         for ant in ants:
             ant.step()
         if i % 10_000 == 0:
-            min_x, min_y, max_x, max_y = grid.bbox
-            if max_x - min_x > size_limit or max_y - min_y > size_limit:
+            bbox = grid.get_display_bbox()
+            if (
+                bbox.max.x - bbox.min.x > size_limit
+                or bbox.max.y - bbox.min.y > size_limit
+            ):
                 break
             print(f"After {i} steps, bbox: {grid.get_display_bbox()}")
 
@@ -169,7 +175,10 @@ def run(
 
 @app.command(help="Dump frames to image files")
 def dump() -> None:
-    pass
+    for i, rules in enumerate(SquareGrid.all_rule_strings()):
+        print(i, rules)
+        if len(rules) > 10:
+            break
 
 
 def main() -> None:

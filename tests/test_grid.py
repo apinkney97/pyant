@@ -4,6 +4,7 @@ import pytest
 
 from ant.grid import (
     DisplayCoord,
+    DisplayBBox,
     GridCoord,
     HexGrid,
     InvalidCoord,
@@ -413,7 +414,6 @@ def test_directions(grid_cls, coord, direction, expectation, new_coord):
         assert grid.get_neighbour(coord, direction) == new_coord
 
 
-@pytest.mark.xfail(reason="TODO: Add coord to get_direction call")
 @pytest.mark.parametrize(
     ["grid_cls", "old_dir", "turn", "expected_new_dir"],
     [
@@ -447,7 +447,7 @@ def test_directions(grid_cls, coord, direction, expectation, new_coord):
 def test_get_direction(grid_cls, old_dir, turn, expected_new_dir):
     grid = grid_cls()
 
-    assert grid.get_direction(old_dir, turn) == expected_new_dir
+    assert grid.get_direction(GridCoord(0, 0), old_dir, turn) == expected_new_dir
 
 
 @pytest.mark.parametrize(
@@ -523,42 +523,67 @@ def test_get_cell_vertices(grid_cls, grid_coord, expected_display_coords):
         (
             SquareGrid,
             [],
-            (0, 0, 0, 0),
+            DisplayBBox(DisplayCoord(0, 0), DisplayCoord(0, 0)),
         ),
         (
             SquareGrid,
             [GridCoord(0, 0)],
-            (0, 0, 1, 1),
+            DisplayBBox(DisplayCoord(0, 0), DisplayCoord(1, 1)),
         ),
         (
             SquareGrid,
             [GridCoord(0, 0), GridCoord(5, 5)],
-            (0, 0, 6, 6),
+            DisplayBBox(DisplayCoord(0, 0), DisplayCoord(6, 6)),
         ),
         (
             SquareGrid,
             [GridCoord(0, 0), GridCoord(-1, -1), GridCoord(5, 5)],
-            (-1, -1, 6, 6),
+            DisplayBBox(DisplayCoord(-1, -1), DisplayCoord(6, 6)),
         ),
         (
             HexGrid,
             [],
-            (0, 0, 0, 0),
+            DisplayBBox(DisplayCoord(0, 0), DisplayCoord(0, 0)),
         ),
         (
             HexGrid,
             [GridCoord(0, 0)],
-            (-0.5, -0.5773502691896257, 0.5, 0.5773502691896257),
+            DisplayBBox(
+                DisplayCoord(-0.5, -0.5773502691896257),
+                DisplayCoord(0.5, 0.5773502691896257),
+            ),
         ),
         (
             HexGrid,
             [GridCoord(0, 0), GridCoord(5, 5)],
-            (-0.5, -0.5773502691896257, 6.0, 4.907477288111819),
+            DisplayBBox(
+                DisplayCoord(-0.5, -0.5773502691896257),
+                DisplayCoord(6.0, 4.907477288111819),
+            ),
         ),
         (
             HexGrid,
             [GridCoord(0, 0), GridCoord(-1, -1), GridCoord(5, 5)],
-            (-1.0, -1.4433756729740645, 6.0, 4.907477288111819),
+            DisplayBBox(
+                DisplayCoord(-1.0, -1.4433756729740645),
+                DisplayCoord(6.0, 4.907477288111819),
+            ),
+        ),
+        (
+            TriangleGrid,
+            [GridCoord(0, 0)],
+            DisplayBBox(
+                min=DisplayCoord(x=0, y=0.0),
+                max=DisplayCoord(x=2, y=1.7320508075688772),
+            ),
+        ),
+        (
+            TriangleGrid,
+            [GridCoord(0, 0), GridCoord(-1, -1), GridCoord(5, 5)],
+            DisplayBBox(
+                min=DisplayCoord(x=-2, y=-1.7320508075688772),
+                max=DisplayCoord(x=9, y=5.196152422706632),
+            ),
         ),
     ],
 )

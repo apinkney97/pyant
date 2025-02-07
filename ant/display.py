@@ -2,7 +2,7 @@ import math
 
 from graphics import Circle, GraphicsObject, GraphWin, Line, Point, Polygon  # type: ignore
 
-from ant.grid import Grid, GridCoord, HexGrid, TriangleGrid
+from ant.grid import Grid, GridCoord, HexGrid, TriangleGrid, DisplayBBox, DisplayCoord
 from ant.types import CellColour
 
 COLOURS = [
@@ -36,7 +36,7 @@ class Display:
         self._display_grid: dict[GridCoord, Polygon] = {}
         self._window = GraphWin("ANT", window_x, window_y, autoflush=False)
         self._window.setBackground(COLOURS[0])
-        self._prev_bbox = (0.0, 0.0, 0.0, 0.0)
+        self._prev_bbox = DisplayBBox(DisplayCoord(0, 0), DisplayCoord(0, 0))
 
         self._display_ants: list[GraphicsObject] = []
 
@@ -46,16 +46,14 @@ class Display:
     def render(self) -> None:
         bbox = self._data_grid.get_display_bbox()
 
-        min_x, min_y, max_x, max_y = bbox
-
-        x_size = max_x - min_x
-        y_size = max_y - min_y
+        x_size = bbox.max.x - bbox.min.x
+        y_size = bbox.max.y - bbox.min.y
 
         x_scale = self._window_x / x_size
         y_scale = self._window_y / y_size
 
-        x_offset = min_x
-        y_offset = min_y
+        x_offset = bbox.min.x
+        y_offset = bbox.min.y
 
         # Centre the image
         if x_scale < y_scale:

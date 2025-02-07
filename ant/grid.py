@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable, NamedTuple, Generator, Any
+from typing import Iterable, NamedTuple, Generator, Any, Iterator
 
 from ant.types import AntColour, CardinalDirection, CellColour, Rule
 
@@ -16,6 +17,32 @@ class AntState(NamedTuple):
     position: GridCoord
     direction: CardinalDirection
     colour: AntColour
+
+
+@dataclass
+class LRDirections:
+    canonical: dict[str, int]
+    aliases: dict[str, int]
+
+    def __iter__(self) -> Iterator[str]:
+        return itertools.chain(self.canonical.keys(), self.aliases.keys())
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.canonical or key in self.aliases
+
+    def __getitem__(self, key: str) -> int:
+        try:
+            return self.canonical[key]
+        except KeyError:
+            pass
+        try:
+            return self.aliases[key]
+        except KeyError:
+            pass
+        raise KeyError(key)
+
+    def keys(self) -> list[str]:
+        return list(self)
 
 
 class Ant:
@@ -117,6 +144,11 @@ class DisplayCoord(NamedTuple):
     y: float
 
 
+class DisplayBBox(NamedTuple):
+    min: DisplayCoord
+    max: DisplayCoord
+
+
 class InvalidCoord(Exception):
     def __init__(self, coord: GridCoord) -> None:
         super().__init__(f"Invalid coordinate {coord}")
@@ -155,12 +187,7 @@ class Grid(ABC):
 
         self._ants: list[Ant] = []
 
-        # Used for the "fast" bbox (which does not take into account true grid geometry)
-        self._has_data = False
-        self._min_x: int = 0
-        self._min_y: int = 0
-        self._max_x: int = 0
-        self._max_y: int = 0
+        self._display_bbox = DisplayBBox(DisplayCoord(0, 0), DisplayCoord(0, 0))
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -181,24 +208,38 @@ class Grid(ABC):
         self._check_coord(coord)
         return self._grid.get(coord, self._default_colour)
 
-    @property
-    def bbox(self) -> tuple[int, int, int, int]:
-        return self._min_x, self._min_y, self._max_x, self._max_y
-
     def __setitem__(self, coord: GridCoord, colour: CellColour) -> None:
         self._check_coord(coord)
 
         # Update the bbox values
-        if self._has_data:
-            self._min_x = min(self._min_x, coord.x)
-            self._max_x = max(self._max_x, coord.x)
-            self._min_y = min(self._min_y, coord.y)
-            self._max_y = max(self._max_y, coord.y)
-        else:
-            self._has_data = True
-            self._min_x = self._max_x = coord.x
-            self._min_y = self._max_y = coord.y
+        first = self.get_cell_vertices(coord)[0]
+        max_x = min_x = first.x
+        max_y = min_y = first.y
 
+        for display_coord in self.get_cell_vertices(coord):
+            min_x = min(min_x, display_coord.x)
+            min_y = min(min_y, display_coord.y)
+            max_x = max(max_x, display_coord.x)
+            max_y = max(max_y, display_coord.y)
+
+        old_bbox = self._display_bbox
+
+        if old_bbox.min == old_bbox.max:
+            # First coordinate
+            self._display_bbox = DisplayBBox(
+                min=DisplayCoord(min_x, min_y), max=DisplayCoord(max_x, max_y)
+            )
+        else:
+            self._display_bbox = DisplayBBox(
+                min=DisplayCoord(
+                    x=min(min_x, old_bbox.min.x), y=min(min_y, old_bbox.min.y)
+                ),
+                max=DisplayCoord(
+                    x=max(max_x, old_bbox.max.x), y=max(max_y, old_bbox.max.y)
+                ),
+            )
+
+        # Actually set the item
         if colour == self._default_colour and not self._store_default:
             self._grid.pop(coord)
         else:
@@ -238,12 +279,15 @@ class Grid(ABC):
         """Returns the centre point of the cell, useful if we want to draw an ant on top"""
         pass
 
-    def get_display_bbox(self) -> tuple[float, float, float, float]:
+    def get_display_bbox(self, refresh: bool = False) -> DisplayBBox:
+        if not refresh:
+            return self._display_bbox
+
         # This will probably be very inefficient when we have lots of coordinates...
         coords = list(self._grid.keys())
 
         if not coords:
-            return 0, 0, 0, 0
+            return DisplayBBox(DisplayCoord(0, 0), DisplayCoord(0, 0))
 
         first = self.get_cell_vertices(coords[0])[0]
         max_x = min_x = first.x
@@ -256,7 +300,9 @@ class Grid(ABC):
                 max_x = max(max_x, display_coord.x)
                 max_y = max(max_y, display_coord.y)
 
-        return min_x, min_y, max_x, max_y
+        return DisplayBBox(
+            min=DisplayCoord(min_x, min_y), max=DisplayCoord(max_x, max_y)
+        )
 
     @abstractmethod
     def get_direction_vectors(
@@ -293,7 +339,7 @@ class Grid(ABC):
 
     @classmethod
     @abstractmethod
-    def lr_directions(cls) -> dict[str, int]:
+    def lr_directions(cls) -> LRDirections:
         pass
 
     @classmethod
@@ -318,12 +364,14 @@ class Grid(ABC):
 
     @classmethod
     def rules_from_lr_string(cls, lr_string: str) -> list[Rule]:
+        return cls._rules_from_lr_tokens(list(cls._tokenise_lr_string(lr_string)))
+
+    @classmethod
+    def _rules_from_lr_tokens(cls, rule_tokens: list[str]) -> list[Rule]:
         # LR string rules are all in ant colour 0, and have one cell colour per character.
         ant_colour = AntColour(0)
         rules = []
         dirs = cls.lr_directions()
-
-        rule_tokens = list(cls._tokenise_lr_string(lr_string))
 
         for colour, turn_dir in enumerate(rule_tokens):
             if turn_dir not in dirs:
@@ -341,7 +389,14 @@ class Grid(ABC):
 
         for i, rule in enumerate(rules):
             print(i, rule)
+
         return rules
+
+    @classmethod
+    def all_rule_strings(cls) -> Generator[tuple[str, ...]]:
+        tokens = list(cls.lr_directions().canonical.keys())
+        for n in itertools.count(start=2):
+            yield from itertools.product(tokens, repeat=n)
 
 
 class SquareGrid(Grid):
@@ -389,18 +444,22 @@ class SquareGrid(Grid):
         return DisplayCoord(coord.x + 0.5, coord.y + 0.5)
 
     @classmethod
-    def lr_directions(cls) -> dict[str, int]:
+    def lr_directions(cls) -> LRDirections:
         # Synonyms:
         # F / N: Forwards / No change
         # B / U: Backwards / U-turn
-        return {
-            "F": 1,  # Forwards
-            "N": 1,  # No change
-            "R": 2,
-            "B": 3,  # Backwards
-            "U": 3,  # U-turn
-            "L": 4,
-        }
+        return LRDirections(
+            canonical={
+                "F": 1,  # Forwards
+                "R": 2,  # Right
+                "B": 3,  # Backwards
+                "L": 4,  # Left
+            },
+            aliases={
+                "N": 1,  # No change
+                "U": 3,  # U-turn
+            },
+        )
 
 
 class HexGrid(Grid):
@@ -493,7 +552,7 @@ class HexGrid(Grid):
         return DisplayCoord(centre_x, centre_y)
 
     @classmethod
-    def lr_directions(cls) -> dict[str, int]:
+    def lr_directions(cls) -> LRDirections:
         # Synonymns:
         # F / N  -> Forwards / No change (0 degrees)
         # R / R1 -> Right 60 degrees
@@ -502,20 +561,24 @@ class HexGrid(Grid):
         # E / L2 -> lEft 120 degrees
         # L / L1 -> Left 60 degrees
 
-        return {
-            "F": 1,
-            "N": 1,
-            "R": 2,
-            "R1": 2,
-            "I": 3,  # rIght
-            "R2": 3,
-            "B": 4,
-            "U": 4,
-            "E": 5,  # lEft
-            "L2": 5,
-            "L": 6,
-            "L1": 6,
-        }
+        return LRDirections(
+            canonical={
+                "N": 1,
+                "R1": 2,
+                "R2": 3,
+                "U": 4,
+                "L2": 5,
+                "L1": 6,
+            },
+            aliases={
+                "F": 1,
+                "R": 2,
+                "I": 3,  # rIght
+                "B": 4,
+                "E": 5,  # lEft
+                "L": 6,
+            },
+        )
 
 
 class TriangleGrid(Grid):
@@ -662,9 +725,12 @@ class TriangleGrid(Grid):
         return DisplayCoord(bottom.x, bottom.y + cls._HEIGHT * 2 / 3)
 
     @classmethod
-    def lr_directions(cls) -> dict[str, int]:
-        return {
-            "R": 1,
-            "B": 2,
-            "L": 3,
-        }
+    def lr_directions(cls) -> LRDirections:
+        return LRDirections(
+            canonical={
+                "R": 1,
+                "B": 2,
+                "L": 3,
+            },
+            aliases={},
+        )
