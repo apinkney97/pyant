@@ -158,6 +158,8 @@ def run(
     start_direction = CardinalDirection.NORTH
     if grid is GridType.HEX:
         start_direction = CardinalDirection.NORTH_WEST
+    elif grid is GridType.TRIANGLE:
+        start_direction = CardinalDirection.SOUTH
 
     ants = []
     for rules in lr_rules:

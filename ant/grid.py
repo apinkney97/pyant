@@ -584,13 +584,14 @@ class HexGrid(Grid):
 class TriangleGrid(Grid):
     # This uses the triangular coordinate scheme outlined here:
     # https://github.com/mhwombat/grid/wiki/Implementation%3A-Triangular-tiles
+    # except that we invert the Y axis to make translating to screen coords easier
 
-    _even_dirs = {
+    _odd_dirs = {
         CardinalDirection.NORTH_EAST,
         CardinalDirection.NORTH_WEST,
         CardinalDirection.SOUTH,
     }
-    _odd_dirs = {
+    _even_dirs = {
         CardinalDirection.NORTH,
         CardinalDirection.SOUTH_WEST,
         CardinalDirection.SOUTH_EAST,
@@ -604,14 +605,14 @@ class TriangleGrid(Grid):
         # TODO: check this
         if self.is_even(coord):
             return {
-                CardinalDirection.NORTH_WEST: Vector(-1, 1),
-                CardinalDirection.NORTH_EAST: Vector(1, 1),
-                CardinalDirection.SOUTH: Vector(1, -1),
+                CardinalDirection.NORTH: Vector(1, -1),
+                CardinalDirection.SOUTH_EAST: Vector(1, 1),
+                CardinalDirection.SOUTH_WEST: Vector(-1, 1),
             }
         return {
-            CardinalDirection.NORTH: Vector(-1, 1),
-            CardinalDirection.SOUTH_EAST: Vector(1, -1),
-            CardinalDirection.SOUTH_WEST: Vector(-1, -1),
+            CardinalDirection.NORTH_WEST: Vector(-1, -1),
+            CardinalDirection.NORTH_EAST: Vector(1, -1),
+            CardinalDirection.SOUTH: Vector(-1, 1),
         }
 
     def get_direction(
@@ -620,10 +621,10 @@ class TriangleGrid(Grid):
         if old_direction in self._even_dirs:
             old_dirs = self._even_dirs
             new_dirs = self._odd_dirs
+            turn = turn - 1
         elif old_direction in self._odd_dirs:
             old_dirs = self._odd_dirs
             new_dirs = self._even_dirs
-            turn = turn - 1
         else:
             raise InvalidDirection(old_direction, coord)
 
