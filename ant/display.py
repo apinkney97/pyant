@@ -1,3 +1,4 @@
+import abc
 import math
 
 from graphics import Circle, GraphicsObject, GraphWin, Line, Point, Polygon
@@ -18,23 +19,45 @@ COLOURS = [
 ]
 
 
-class Display:
+class Display(abc.ABC):
     def __init__(
         self,
         grid: Grid,
-        window_x: int = 1024,
-        window_y: int = 1024,
-        show_cell_borders: bool = False,
-        show_ants: bool = True,
+        width_px: int,
+        height_px: int,
+        show_cell_borders: bool,
+        show_ants: bool,
     ) -> None:
         self._data_grid = grid
-        self._window_x = window_x
-        self._window_y = window_y
+        self._width_px = width_px
+        self._height_px = height_px
         self._show_cell_borders = show_cell_borders
         self._show_ants = show_ants
 
+    @abc.abstractmethod
+    def render(self) -> None:
+        pass
+
+
+class WindowDisplay(Display):
+    def __init__(
+        self,
+        grid: Grid,
+        width_px: int = 1024,
+        height_px: int = 1024,
+        show_cell_borders: bool = False,
+        show_ants: bool = True,
+    ) -> None:
+        super().__init__(
+            grid=grid,
+            width_px=width_px,
+            height_px=height_px,
+            show_cell_borders=show_cell_borders,
+            show_ants=show_ants,
+        )
+
         self._display_grid: dict[GridCoord, Polygon] = {}
-        self._window = GraphWin("ANT", window_x, window_y, autoflush=False)
+        self._window = GraphWin("ANT", self._width_px, self._height_px, autoflush=False)
         self._window.setBackground(COLOURS[0])
         self._prev_bbox = DisplayBBox(DisplayCoord(0, 0), DisplayCoord(0, 0))
 
@@ -49,8 +72,8 @@ class Display:
         x_size = bbox.max.x - bbox.min.x
         y_size = bbox.max.y - bbox.min.y
 
-        x_scale = self._window_x / x_size
-        y_scale = self._window_y / y_size
+        x_scale = self._width_px / x_size
+        y_scale = self._height_px / y_size
 
         x_offset = bbox.min.x
         y_offset = bbox.min.y
@@ -58,10 +81,10 @@ class Display:
         # Centre the image
         if x_scale < y_scale:
             scale = x_scale
-            y_offset -= (self._window_y / scale - y_size) // 2
+            y_offset -= (self._height_px / scale - y_size) // 2
         else:
             scale = y_scale
-            x_offset -= (self._window_x / scale - x_size) // 2
+            x_offset -= (self._width_px / scale - x_size) // 2
 
         # If bbox changes, need a full redraw
         if bbox != self._prev_bbox:
@@ -140,11 +163,11 @@ def test() -> None:
     grid[GridCoord(1, 0)] = CellColour(3)
     grid[GridCoord(1, 1)] = CellColour(4)
 
-    # d = Display(grid)
+    # d = WindowDisplay(grid)
     # d.render()
 
     tg = TriangleGrid(store_default=True)
     tg[GridCoord(0, 0)] = CellColour(1)
     tg[GridCoord(2, 2)] = CellColour(2)
-    d = Display(tg)
+    d = WindowDisplay(tg)
     d.render()

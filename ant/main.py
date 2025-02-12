@@ -5,7 +5,7 @@ from itertools import count
 import typer
 from graphics import tk  # type: ignore
 
-from ant.display import Display
+from ant.display import WindowDisplay
 from ant.grid import Grid, HexGrid, SquareGrid, TriangleGrid
 from ant.types import CardinalDirection
 
@@ -27,7 +27,7 @@ def _run_live(
     if not grid.ants:
         return
 
-    display = Display(grid)
+    display = WindowDisplay(grid)
 
     print("Use Ctrl-C to halt execution")
 
