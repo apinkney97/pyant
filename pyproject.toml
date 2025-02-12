@@ -30,11 +30,15 @@ dev = [
 ]
 
 [tool.mypy]
-files = "ant"
+files = ["ant", "stubs"]
 strict = true
 
 [tool.pdm.build]
 includes = []
+
+[tool.ruff.lint]
+# Enable isort rules.
+extend-select = ["I"]
 
 [tool.tomlsort]
 sort_first = ["project"]

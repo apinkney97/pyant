@@ -6,8 +6,8 @@ import typer
 from graphics import tk  # type: ignore
 
 from ant.display import Display
-from ant.grid import Ant, AntState, Grid, GridCoord, HexGrid, SquareGrid, TriangleGrid
-from ant.types import AntColour, CardinalDirection, Rule
+from ant.grid import Grid, HexGrid, SquareGrid, TriangleGrid
+from ant.types import CardinalDirection
 
 
 class GridType(StrEnum):
@@ -16,50 +16,16 @@ class GridType(StrEnum):
     TRIANGLE = auto()
 
 
-def make_ant(
-    rules: str | list[Rule],
-    grid: Grid | None = None,
-    start_position: GridCoord = GridCoord(0, 0),
-    start_direction: CardinalDirection = CardinalDirection.NORTH,
-    colour: AntColour = AntColour(0),
-) -> Ant:
-    if grid is None:
-        grid = SquareGrid(store_default=True)
-    if isinstance(rules, str):
-        rules = grid.rules_from_lr_string(rules)
-    return Ant(
-        grid=grid,
-        rules=rules,
-        initial_state=AntState(
-            position=start_position,
-            direction=start_direction,
-            colour=colour,
-        ),
-    )
-
-
-def validate_ants(ants: list[Ant]) -> Grid:
-    # Validates all ants live on the same grid
-    grid = ants[0].grid
-
-    for ant in ants[1:]:
-        if ant.grid is not grid:
-            raise ValueError("Ant must all live on the same grid")
-    return grid
-
-
 def _run_live(
-    ants: list[Ant],
+    grid: Grid,
     step_limit: int,
     sleep_interval: float,
     steps_per_redraw: int,
     size_limit: int,
     manual_steps: int,
 ) -> None:
-    if not ants:
+    if not grid.ants:
         return
-
-    grid = validate_ants(ants)
 
     display = Display(grid)
 
@@ -74,8 +40,8 @@ def _run_live(
     i = next(range_)
     for i in range_:
         try:
-            for ant in ants:
-                ant.step()
+            for ant in grid.ants:
+                ant.step(grid)
             manual_step = bool(manual_steps and i % manual_steps == 0)
             if i % steps_per_redraw == 0 or manual_step:
                 display.render()
@@ -109,15 +75,14 @@ def _run_live(
 
 
 def _run(
-    ants: list[Ant],
+    grid: Grid,
     step_limit: int,
     size_limit: int,
     title: str = "",
 ) -> None:
-    grid = validate_ants(ants)
     for i in range(step_limit):
-        for ant in ants:
-            ant.step()
+        for ant in grid.ants:
+            ant.step(grid)
         if i % 10_000 == 0:
             bbox = grid.get_display_bbox()
             if (
@@ -148,25 +113,21 @@ def run(
     match grid:
         case GridType.SQUARE:
             grid_ = SquareGrid(store_default=True)
+            start_direction = CardinalDirection.NORTH
         case GridType.HEX:
             grid_ = HexGrid(store_default=True)
+            start_direction = CardinalDirection.NORTH_WEST
         case GridType.TRIANGLE:
             grid_ = TriangleGrid(store_default=True)
+            start_direction = CardinalDirection.SOUTH
         case _:
             raise ValueError(f"Unhandled grid type {grid}")
 
-    start_direction = CardinalDirection.NORTH
-    if grid is GridType.HEX:
-        start_direction = CardinalDirection.NORTH_WEST
-    elif grid is GridType.TRIANGLE:
-        start_direction = CardinalDirection.SOUTH
-
-    ants = []
     for rules in lr_rules:
-        ants.append(make_ant(rules, grid_, start_direction=start_direction))
+        grid_.add_ant(rules, start_direction=start_direction)
 
     _run_live(
-        ants=ants,
+        grid=grid_,
         steps_per_redraw=steps_per_redraw,
         sleep_interval=sleep_interval,
         step_limit=step_limit,

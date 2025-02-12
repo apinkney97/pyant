@@ -1,8 +1,8 @@
 import math
 
-from graphics import Circle, GraphicsObject, GraphWin, Line, Point, Polygon  # type: ignore
+from graphics import Circle, GraphicsObject, GraphWin, Line, Point, Polygon
 
-from ant.grid import Grid, GridCoord, HexGrid, TriangleGrid, DisplayBBox, DisplayCoord
+from ant.grid import DisplayBBox, DisplayCoord, Grid, GridCoord, HexGrid, TriangleGrid
 from ant.types import CellColour
 
 COLOURS = [
@@ -41,7 +41,7 @@ class Display:
         self._display_ants: list[GraphicsObject] = []
 
     def set_title(self, title: str) -> None:
-        self._window.master.title(str(title))
+        self._window.master.title(str(title))  # type: ignore[attr-defined]
 
     def render(self) -> None:
         bbox = self._data_grid.get_display_bbox()
@@ -115,7 +115,9 @@ class Display:
                 ant_shape.draw(self._window)
 
                 angle = (
-                    (180 - ant.grid.get_ant_angle(ant.state.direction)) * math.pi / 180
+                    (180 - self._data_grid.get_ant_angle(ant.state.direction))
+                    * math.pi
+                    / 180
                 )
                 dx = radius * math.sin(angle)
                 dy = radius * math.cos(angle)

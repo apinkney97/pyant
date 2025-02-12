@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable, NamedTuple, Generator, Any, Iterator
+from typing import Any, Generator, Iterable, Iterator, NamedTuple
 
 from ant.types import AntColour, CardinalDirection, CellColour, Rule
 
@@ -48,11 +48,9 @@ class LRDirections:
 class Ant:
     def __init__(
         self,
-        grid: Grid,
         rules: Iterable[Rule],
         initial_state: AntState,
     ) -> None:
-        self._grid = grid
         self._state = initial_state
         self._prev_position = initial_state.position
 
@@ -63,27 +61,21 @@ class Ant:
                 print(f"Warning: duplicate rules for {key}")
             self._rules[key] = rule
 
-        grid.add_ant(self)
-
-    @property
-    def grid(self) -> Grid:
-        return self._grid
-
-    def step(self) -> None:
+    def step(self, grid: Grid) -> None:
         # Look up the rule
         rule_key = RuleKey(
-            ant_colour=self.state.colour, cell_colour=self._grid[self.state.position]
+            ant_colour=self.state.colour, cell_colour=grid[self.state.position]
         )
         rule = self._rules[rule_key]
 
         # change the colour of the current cell
-        self._grid[self.state.position] = rule.new_cell_colour
+        grid[self.state.position] = rule.new_cell_colour
 
         # calculate the new direction, then move the ant in that direction
-        new_direction = self._grid.get_direction(
+        new_direction = grid.get_direction(
             self.state.position, self.state.direction, rule.turn
         )
-        new_position = self._grid.get_neighbour(self.state.position, new_direction)
+        new_position = grid.get_neighbour(self.state.position, new_direction)
 
         self._prev_position = self.state.position
         self._state = AntState(
@@ -193,8 +185,25 @@ class Grid(ABC):
         super().__init_subclass__(**kwargs)
         cls._cell_vertices_cache = {}
 
-    def add_ant(self, ant: Ant) -> None:
-        self._ants.append(ant)
+    def add_ant(
+        self,
+        rules: str | list[Rule],
+        start_position: GridCoord = GridCoord(0, 0),
+        start_direction: CardinalDirection = CardinalDirection.NORTH,
+        colour: AntColour = AntColour(0),
+    ) -> None:
+        if isinstance(rules, str):
+            rules = self.rules_from_lr_string(rules)
+        self._ants.append(
+            Ant(
+                rules=rules,
+                initial_state=AntState(
+                    position=start_position,
+                    direction=start_direction,
+                    colour=colour,
+                ),
+            )
+        )
 
     @property
     def ants(self) -> list[Ant]:

@@ -3,8 +3,8 @@ from contextlib import nullcontext as does_not_raise
 import pytest
 
 from ant.grid import (
-    DisplayCoord,
     DisplayBBox,
+    DisplayCoord,
     GridCoord,
     HexGrid,
     InvalidCoord,
@@ -13,7 +13,7 @@ from ant.grid import (
     TriangleGrid,
     Vector,
 )
-from ant.types import AntColour, CellColour, Rule, CardinalDirection
+from ant.types import AntColour, CardinalDirection, CellColour, Rule
 
 
 def test_adding_vectors_to_coords():
